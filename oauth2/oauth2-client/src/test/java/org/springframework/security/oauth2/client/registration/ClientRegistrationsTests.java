@@ -34,6 +34,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.security.oauth2.core.AuthorizationGrantType;
 import org.springframework.security.oauth2.core.ClientAuthenticationMethod;
+import org.springframework.web.client.UnknownContentTypeException;
 import org.springframework.web.util.UriComponents;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -600,6 +601,27 @@ public class ClientRegistrationsTests {
 			.withMessageContaining("405")
 			.withMessageContaining("400")
 			.withMessageContaining("404");
+	}
+
+	@Test
+	public void test() {
+		// 이게 에러나서 테스트가 성공하는게 문제라는거임.
+		// 마지막에 성공하는 케이스 있잖아?
+		this.issuer = createIssuerFromServer("issuer1");
+		this.server.setDispatcher(new Dispatcher() {
+			@Override
+			public MockResponse dispatch(RecordedRequest request) {
+				int responseCode = switch (request.getPath()) {
+					case "/issuer1/.well-known/openid-configuration" -> 405;
+					case "/.well-known/openid-configuration/issuer1" -> 400;
+					case "/.well-known/oauth-authorization-server/issuer1" -> 200;
+					default -> 404;
+				};
+				return new MockResponse().setResponseCode(responseCode);
+			}
+		});
+		assertThatExceptionOfType(IllegalArgumentException.class)
+				.isThrownBy(() -> ClientRegistrations.fromIssuerLocation(this.issuer).build());
 	}
 
 	private ClientRegistration.Builder registration(String path) throws Exception {
